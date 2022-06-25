@@ -12,33 +12,39 @@ import Data.List
 hasDuplicates :: (Ord a) => [a] -> Bool
 hasDuplicates xs = length (nub xs) /= length xs
 
-type CellPosition = (Int, Int)
 
-
-data Cell = Cell Int deriving (Eq,Ord)
+data Cell = Cell {cellValue::Int,isCellEditable::Bool} deriving (Eq,Ord)
 instance Show Cell where
-    show (Cell 0) = "." 
-    show (Cell x) = show x
+    show (Cell 0 _) = "." 
+    show (Cell x _) = show x
+toChar :: Cell -> Char
+toChar c = head $ show c
 
-toChar (Cell 0) = '.'
-toChar (Cell x) = head $ show x
+resetCell:: Cell -> Cell
+resetCell (Cell v b) 
+    | b         = (Cell 0 b)
+    | otherwise = (Cell v b)
+
 
 isValid:: [Cell] -> Bool
-isValid= not.hasDuplicates.(filter (/= (Cell 0))) 
-
-reportPos :: IO (Maybe (Int, Int))
-reportPos = do
-    pos <- getCursorPosition
-    putStrLn $ show pos
-    return $ pos
+isValid= not.hasDuplicates.(filter (/= (Cell 0 True))) 
 
 data Sudoku = Sudoku [Cell] 
 instance Show Sudoku where
-        show (Sudoku (cs))  
-            | cs == [] = ""
-            | otherwise =(toChar (head cs)) : (show (Sudoku (tail cs)))
+    show (Sudoku (cs))  
+     | cs == [] = ""
+     | otherwise =(toChar (head cs)) : (show (Sudoku (tail cs)))
 
-sudoku= Sudoku (replicate 81 (Cell 0))
+readSudoku :: String -> Sudoku
+readSudoku ss = Sudoku (aux ss) where 
+    aux ss
+        | ss == "" = [] 
+        | otherwise = Cell val (if val == 0 then True else False) : (aux (tail ss)) where
+        -- | otherwise = Cell((read.pure :: Char->Int) (head ss)) False : (aux (tail ss))
+            val = (read.pure :: Char->Int )  (head ss) 
+
+resetSudoku :: Sudoku->Sudoku
+resetSudoku (Sudoku cs) = Sudoku $ map resetCell cs
 
 frame="                           \n"++
       " +-------+-------+-------+ \n"++
@@ -55,30 +61,37 @@ frame="                           \n"++
       " | 7 8 9 | 7 8 9 | 7 8 9 | \n"++
       " +-------+-------+-------+ \n"++
       "                           \n"++
-      " h - move left             \n"++
-      " l - move right            \n"++
-      " k - move up               \n"++
-      " j - move down             \n"++
-      " d - delete                \n"++
-      "                           \n"
+      " [1-9] - modify            \n"++
+      "     d - delete            \n"++
+      "     h - move left         \n"++
+      "     l - move right        \n"++
+      "     k - move up           \n"++
+      "     j - move down         \n"++
+      "     r - full reset        \n"
+-- indices of cell values in the frame
+inds =take 81 ([59,61,63,67,69,71,75,77,79,87,89,91,95,97,99,103,105,107,115,117,119,123,125,127,131,133,135] ++ (map (+112) inds))
 
+exampleEasy ="000260701680070090190004500820100040004602900050003028009300074040050036703018000"
 
+-- Replace an element in the list at position n with newval
 replaceElem n newval (s:ss)
     | n==0      = newval:ss
     | otherwise = s: replaceElem (n-1) newval ss
 
 
-replaceAll ::  [Int]->String->String->String
-replaceAll ns vs ss
+-- Replace multiple element in the list at position n with newval
+replaceElems ::  [Int]->String->String->String
+replaceElems ns vs ss
     | vs==[]      = ss
     | ns==[]      = ss
-    | otherwise =  replaceAll (tail ns) (tail vs) ( replaceElem (head ns) (head vs) ss)
+    | otherwise =  replaceElems (tail ns) (tail vs) ( replaceElem (head ns) (head vs) ss)
 
 replaceCell:: Int->Int->Sudoku->Sudoku
-replaceCell n newval (Sudoku cs) = Sudoku (replaceElem n (Cell newval) cs)
+replaceCell n newval (Sudoku cs)  
+        | isCellEditable (cs!!n) = Sudoku (replaceElem n (Cell newval True) cs)
+        | otherwise = Sudoku (cs)
 
 
-inds =take 81 ([59,61,63,67,69,71,75,77,79,87,89,91,95,97,99,103,105,107,115,117,119,123,125,127,131,133,135] ++ (map (+112) inds))
 
 
 -- Prints Sudoku with the active field being higlighted
@@ -97,7 +110,7 @@ renderSudoku s@(Sudoku cs) n= do
            ]
     clearScreen
 
-    putStrLn  $ replaceAll inds (show  s) frame
+    putStrLn  $ replaceElems inds (show  s) frame
     saveCursor 
     setCursorPosition ((div (inds!!n) 28)) (mod (inds!!n) 28) 
     setSGR [ SetConsoleIntensity NormalIntensity
@@ -129,6 +142,7 @@ aux s = do
             '2' -> (n, replaceCell n 2 s)
             '1' -> (n, replaceCell n 1 s)
             'd' -> (n, replaceCell n 0 s)
+            'r' -> (n, resetSudoku s)
             _   -> (n, s))
         (n,s) <- get
         liftIO (renderSudoku s n)
@@ -140,5 +154,6 @@ main = do
         hSetEcho stdin False
         hSetBuffering stdin NoBuffering
         hSetBuffering stdout NoBuffering
+        sudoku <- return $ readSudoku exampleEasy
         renderSudoku sudoku 0
         moveCursor sudoku 
