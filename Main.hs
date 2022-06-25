@@ -2,17 +2,13 @@ module Main where
 
 import System.Console.ANSI
 import System.IO
-import Control.Concurrent
-import Control.Monad
 import Control.Monad.State
-import Control.Monad.Reader
-import Control.Monad.Writer
-
 import Data.List
-hasDuplicates :: (Ord a) => [a] -> Bool
-hasDuplicates xs = length (nub xs) /= length xs
 
+-- hasDuplicates :: (Ord a) => [a] -> Bool
+--hasDuplicates xs = length (nub xs) /= length xs
 
+-- Cell data structure
 data Cell = Cell {cellValue::Int,isCellEditable::Bool} deriving (Eq,Ord)
 instance Show Cell where
     show (Cell 0 _) = "." 
@@ -26,9 +22,10 @@ resetCell (Cell v b)
     | otherwise = (Cell v b)
 
 
-isValid:: [Cell] -> Bool
-isValid= not.hasDuplicates.(filter (/= (Cell 0 True))) 
+-- isValid:: [Cell] -> Bool
+-- isValid= not.hasDuplicates.(filter (/= (Cell 0 True))) 
 
+-- Sudoku data structure 
 data Sudoku = Sudoku [Cell] 
 instance Show Sudoku where
     show (Sudoku (cs))  
@@ -46,6 +43,7 @@ readSudoku ss = Sudoku (aux ss) where
 resetSudoku :: Sudoku->Sudoku
 resetSudoku (Sudoku cs) = Sudoku $ map resetCell cs
 
+-- String for interface
 frame="                           \n"++
       " +-------+-------+-------+ \n"++
       " | 1 2 3 | 1 2 3 | 1 2 3 | \n"++
@@ -68,10 +66,10 @@ frame="                           \n"++
       "     k - move up           \n"++
       "     j - move down         \n"++
       "     r - full reset        \n"
--- indices of cell values in the frame
+
+-- Indices of cell values in the frame
 inds =take 81 ([59,61,63,67,69,71,75,77,79,87,89,91,95,97,99,103,105,107,115,117,119,123,125,127,131,133,135] ++ (map (+112) inds))
 
-exampleEasy ="000260701680070090190004500820100040004602900050003028009300074040050036703018000"
 
 -- Replace an element in the list at position n with newval
 replaceElem n newval (s:ss)
@@ -92,13 +90,11 @@ replaceCell n newval (Sudoku cs)
         | otherwise = Sudoku (cs)
 
 
-
-
 -- Prints Sudoku with the active field being higlighted
 renderSudoku :: Sudoku->Int->IO ()
 renderSudoku s@(Sudoku cs) n= do
     setCursorPosition 0 0
-    setTitle "Sudoku"
+    setTitle "Blue Sudoku"
 
     setSGR [ SetConsoleIntensity NormalIntensity
            , SetColor Foreground Vivid White
@@ -115,14 +111,14 @@ renderSudoku s@(Sudoku cs) n= do
            ]
 
     putStr (show (cs!!n))
-    
     restoreCursor 
 
+-- Visual interface and interactions
 interactive :: Sudoku -> StateT (Int, Sudoku) IO ()
 interactive s = do
         (n,s) <- get
+        liftIO (renderSudoku s n)
         k <- liftIO getChar
-        liftIO $ print (n)
         put (case k of 
             'l' -> (if (n+1)>80 then n else n+1, s)
             'j' -> (if (n+9)>80 then n else n+9, s)
@@ -141,16 +137,12 @@ interactive s = do
             'r' -> (n, resetSudoku s)
             _   -> (n, s))
         (n,s) <- get
-        liftIO (renderSudoku s n)
         interactive s
 
-start :: Sudoku -> IO (Int, Sudoku)
-start s = execStateT (interactive s) (0, s)
-
+exampleEasy ="000260701680070090190004500820100040004602900050003028009300074040050036703018000"
 main = do 
         hSetEcho stdin False
         hSetBuffering stdin NoBuffering
         hSetBuffering stdout NoBuffering
         sudoku <- return $ readSudoku exampleEasy
-        renderSudoku sudoku 0
-        start sudoku 
+        execStateT (interactive sudoku) (0, sudoku)
