@@ -100,10 +100,6 @@ renderSudoku s@(Sudoku cs) n= do
     setCursorPosition 0 0
     setTitle "Sudoku"
 
-    setSGR [ SetConsoleIntensity BoldIntensity
-           , SetColor Foreground Vivid Blue
-           , SetColor Background Vivid White
-           ]
     setSGR [ SetConsoleIntensity NormalIntensity
            , SetColor Foreground Vivid White
            , SetColor Background Dull Blue
@@ -122,8 +118,8 @@ renderSudoku s@(Sudoku cs) n= do
     
     restoreCursor 
 
-aux :: Sudoku -> StateT (Int, Sudoku) IO ()
-aux s = do
+interactive :: Sudoku -> StateT (Int, Sudoku) IO ()
+interactive s = do
         (n,s) <- get
         k <- liftIO getChar
         liftIO $ print (n)
@@ -146,9 +142,10 @@ aux s = do
             _   -> (n, s))
         (n,s) <- get
         liftIO (renderSudoku s n)
-        aux s
-moveCursor :: Sudoku -> IO (Int, Sudoku)
-moveCursor s = execStateT (aux s) (0, s)
+        interactive s
+
+start :: Sudoku -> IO (Int, Sudoku)
+start s = execStateT (interactive s) (0, s)
 
 main = do 
         hSetEcho stdin False
@@ -156,4 +153,4 @@ main = do
         hSetBuffering stdout NoBuffering
         sudoku <- return $ readSudoku exampleEasy
         renderSudoku sudoku 0
-        moveCursor sudoku 
+        start sudoku 
